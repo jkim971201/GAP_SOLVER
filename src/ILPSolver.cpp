@@ -1,6 +1,6 @@
 #include <vector>
 #include <unordered_map>
-#include "LPSolver.h"
+#include "ILPSolver.h"
 
 // Google Ortools
 #include <ortools/linear_solver/linear_solver.h>
@@ -10,40 +10,40 @@ using operations_research::MPObjective;
 using operations_research::MPSolver;
 using operations_research::MPVariable;
 
-namespace lpsolver
+namespace ilpsolver
 {
 
-LPSolver::LPSolver(const std::vector<std::vector<int>>& profits,
-                   const std::vector<std::vector<int>>& weights,
-                   const std::vector<int>& capacities)
+ILPSolver::ILPSolver(std::vector<std::vector<int>>& profits,
+                     std::vector<std::vector<int>>& weights,
+                     std::vector<int>& capacities)
   : profits_   (profits),
     weights_   (weights),
     capacities_(capacities)
 {}
 
 bool
-LPSolver::solve()
+ILPSolver::solve()
 {
   int num_items = weights_.size();
   int num_sacks = capacities_.size();
 
-  // Initialize LP Solver
-  std::unique_ptr<MPSolver> lp_solver(MPSolver::CreateSolver("GLOP"));
-  std::unordered_map<int, std::vector<LPCandidate*>> item_id2candidates;
-  std::unordered_map<int, std::vector<LPCandidate*>> sack_id2candidates;
-  std::unordered_map<LPCandidate*, MPVariable*> x_table;
+  // Initialize ILP Solver
+  std::unique_ptr<MPSolver> ilp_solver(MPSolver::CreateSolver("SCIP"));
+  auto set_num_thread_status = ilp_solver->SetNumThreads(1); 
+
+  std::unordered_map<int, std::vector<ILPCandidate*>> item_id2candidates;
+  std::unordered_map<int, std::vector<ILPCandidate*>> sack_id2candidates;
+  std::unordered_map<ILPCandidate*, MPVariable*> x_table;
 
   // Make Variables
-  const double infinity = lp_solver->infinity();
   for(int sack_id = 0; sack_id < num_sacks; sack_id++)
   {
     for(int item_id = 0; item_id < num_items; item_id++)
     {
       int profit = profits_[item_id][sack_id];
       int weight = weights_[item_id][sack_id];
-      LPCandidate* new_cand = new LPCandidate(item_id, sack_id, profit, weight);
-      //MPVariable* const new_x = lp_solver->MakeNumVar(0.0, infinity, "");
-      MPVariable* const new_x = lp_solver->MakeNumVar(0.0, 1.0, "");
+      ILPCandidate* new_cand = new ILPCandidate(item_id, sack_id, profit, weight);
+      MPVariable* const new_x = ilp_solver->MakeIntVar(0, 1, "");
       item_id2candidates[item_id].push_back(new_cand);
       sack_id2candidates[sack_id].push_back(new_cand);
       x_table[new_cand] = new_x;
@@ -51,7 +51,7 @@ LPSolver::solve()
   }
 
   // Make Objective
-  MPObjective* const objective = lp_solver->MutableObjective();
+  MPObjective* const objective = ilp_solver->MutableObjective();
   for(auto& [ilp_cand, x_var] : x_table)
     objective->SetCoefficient(x_var, ilp_cand->profit);
 
@@ -61,7 +61,7 @@ LPSolver::solve()
   for(auto& [item_id, candidates] : item_id2candidates)
   {
     MPConstraint* const new_select_constraint 
-      = lp_solver->MakeRowConstraint(1, 1);
+      = ilp_solver->MakeRowConstraint(1, 1);
     for(auto& candidate : candidates)
     {
       auto x_variable = x_table[candidate];
@@ -75,7 +75,7 @@ LPSolver::solve()
     int sack_capacity = capacities_[sack_id];
 
     MPConstraint* const new_overlap_constraint 
-      = lp_solver->MakeRowConstraint(0.0, sack_capacity);
+      = ilp_solver->MakeRowConstraint(0.0, sack_capacity);
 
     for(auto cand : candidates)
     {
@@ -86,7 +86,7 @@ LPSolver::solve()
   }
 
   // Solve
-  const MPSolver::ResultStatus result_status = lp_solver->Solve();
+  const MPSolver::ResultStatus result_status = ilp_solver->Solve();
 
   // When Solver fails, return false to increase bin_cap_margin.
   if(result_status != MPSolver::OPTIMAL)
@@ -105,19 +105,22 @@ LPSolver::solve()
     }
   }
 
+  //printf("NumConstraint : %d\n", ilp_solver->NumConstraints());
+  //printf("NumVariable   : %d\n", ilp_solver->NumVariables());
+
   obj_value_ = objective->Value();
   solution_ = solution;
   return true;
 }
 
-double
-LPSolver::getOptimalValue() const
+int
+ILPSolver::getOptimalValue() const
 {
   return obj_value_;
 }
 
 std::vector<int>
-LPSolver::getResult() const
+ILPSolver::getResult() const
 {
   return solution_;
 }

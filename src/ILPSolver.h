@@ -1,35 +1,34 @@
-
-#ifndef LP_SOLVER_H
-#define LP_SOLVER_H
+#ifndef ILP_SOLVER_H
+#define ILP_SOLVER_H
 
 #include <vector>
 
-namespace lpsolver
+namespace ilpsolver
 {
 
-struct LPCandidate
+struct ILPCandidate
 {
   int item_id;
   int sack_id;
   int profit;
   int weight;
 
-  LPCandidate(int _item, int _sack, int _profit, int _weight)
+  ILPCandidate(int _item, int _sack, int _profit, int _weight)
     : item_id(_item), sack_id(_sack), profit(_profit), weight(_weight)
   {}
 };
 
-class LPSolver
+class ILPSolver
 {
   public:
 
-    LPSolver(const std::vector<std::vector<int>>& profits,
-              const std::vector<std::vector<int>>& weights,
-              const std::vector<int>& capacities);
+    ILPSolver(std::vector<std::vector<int>>& profits,
+              std::vector<std::vector<int>>& weights,
+              std::vector<int>& capacities);
 
     bool solve();
     std::vector<int> getResult() const;
-    double getOptimalValue() const;
+    int getOptimalValue() const;
 
   private:
 

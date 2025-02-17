@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(ColumnGeneration LANGUAGES CXX)
+project(GAP_SOLVER LANGUAGES CXX)
 
 set(CMAKE_C_COMPILER "g++")
 set(CMAKE_CXX_STANDARD 20)
@@ -11,8 +11,8 @@ find_package(ortools REQUIRED CONFIG)
 
 set(PROJECT_SRC 
 	src/main.cpp
-	src/LPSolver.cpp
-	src/CGSolver.cpp
+	src/ILPSolver.cpp
+	src/GAPBuilder.cpp
 )
 
 add_executable(${PROJECT_NAME} ${PROJECT_SRC})
