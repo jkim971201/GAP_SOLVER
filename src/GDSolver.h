@@ -30,12 +30,16 @@ class GDSolver
   private:
 
     float softmax_tmpr_;
+    float step_size_;
 
-    void updateBinPenalty();
+    void setHyperParmeter();
+    void updateParameter();
+    void updateXYVector();
+
     void computeBinSlack();
     void computeSubGradient();
     void computeFlattenInfo();
-		void computeSumExpX();
+    void computeSumExpX();
 
     std::shared_ptr<gapbuilder::GAPInstance> instance_;
 
@@ -56,11 +60,15 @@ class GDSolver
     std::vector<float> vector_y_;
 
     std::vector<float> vector_sum_exp_;
-		std::vector<float> vector_min_x_;
+    std::vector<float> vector_min_x_;
 
     std::vector<int> num_cands_each_cell_;
     std::vector<int> cell_id_to_cand_start_;
     std::vector<int> cands_in_cell_;
+
+    std::vector<float> df_dy_;
+    std::vector<float> dy_dx_;
+    std::vector<float> df_dx_;
 };
 
 }
