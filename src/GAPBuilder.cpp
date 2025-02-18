@@ -57,7 +57,6 @@ GAPBuilder::buildInstance(std::string_view file_name)
     input_file >> new_cap;
     capacities.push_back(new_cap);
   }
-
 }
 
 void 

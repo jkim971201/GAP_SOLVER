@@ -4,11 +4,13 @@
 #include <memory>
 #include <cassert>
 
+#include "GDSolver.h"
 #include "GAPBuilder.h"
 #include "ILPSolver.h"
 
 using namespace gapbuilder;
 using namespace ilpsolver;
+using namespace gdsolver;
 
 int main(int argc, char** argv)
 {
@@ -42,6 +44,19 @@ int main(int argc, char** argv)
   printf("ILP Solver Results\n");
   printf("Objective Value : %d\n", solver_ilp->getOptimalValue());
   printf("Runtime : %f\n", runtime_ilp.count());
+
+  auto t3 = std::chrono::high_resolution_clock::now();
+
+  std::unique_ptr<GDSolver> solver_gd
+    = std::make_unique<GDSolver>(gap_instance);
+
+  bool gd_success = solver_gd->solve();
+
+  auto t4 = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> runtime_gd = t4 - t3;
+
+  printf("GD Solver Results\n");
+  printf("Runtime : %f\n", runtime_gd.count());
 
   return 0;
 }
