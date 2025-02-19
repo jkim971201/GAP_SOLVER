@@ -102,6 +102,7 @@ ILPSolver::solve()
       int sack_id = candidate->sack_id;
       int profit  = candidate->profit;
       solution[item_id] = sack_id;
+			printf("move cell %d to bin %d\n", item_id, sack_id);
     }
   }
 

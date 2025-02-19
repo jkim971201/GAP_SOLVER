@@ -29,17 +29,19 @@ class GDSolver
 
   private:
 
+		int max_gd_iter_;
     float softmax_tmpr_;
     float step_size_;
+    float overflow_penalty_;
 
     void setHyperParmeter();
     void updateParameter();
     void updateXYVector();
 
-    void computeBinSlack();
+    void computeBinOverflow();
     void computeSubGradient();
     void computeFlattenInfo();
-    void computeSumExpX();
+    void computeExpX();
 
     std::shared_ptr<gapbuilder::GAPInstance> instance_;
 
@@ -53,13 +55,14 @@ class GDSolver
 
     std::vector<ILPCandidate> candidates_;
 
-    std::vector<float> bin_slack_;
+    std::vector<float> bin_overflow_;
     std::vector<float> penalty_;
 
     std::vector<float> vector_x_;
     std::vector<float> vector_y_;
 
     std::vector<float> vector_sum_exp_;
+    std::vector<float> vector_exp_;
     std::vector<float> vector_min_x_;
 
     std::vector<int> num_cands_each_cell_;
