@@ -29,10 +29,7 @@ class GDSolver
 
   private:
 
-		int max_gd_iter_;
-    float softmax_tmpr_;
     float step_size_;
-    float overflow_penalty_;
 
     void setHyperParmeter();
     void updateParameter();
@@ -55,11 +52,12 @@ class GDSolver
 
     std::vector<ILPCandidate> candidates_;
 
-    std::vector<float> bin_overflow_;
+    std::vector<int>   bin_overflow_;
     std::vector<float> penalty_;
 
     std::vector<float> vector_x_;
     std::vector<float> vector_y_;
+    std::vector<int>   vector_y_int_;
 
     std::vector<float> vector_sum_exp_;
     std::vector<float> vector_exp_;
@@ -68,10 +66,6 @@ class GDSolver
     std::vector<int> num_cands_each_cell_;
     std::vector<int> cell_id_to_cand_start_;
     std::vector<int> cands_in_cell_;
-
-    std::vector<float> df_dy_;
-    std::vector<float> dy_dx_;
-    std::vector<float> df_dx_;
 };
 
 }

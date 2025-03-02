@@ -24,6 +24,7 @@ int main(int argc, char** argv)
 
   GAPBuilder gap_builder(input_file_name);
   gap_builder.print();
+	gap_builder.writeMATLAB();
 
   auto gap_instance = gap_builder.getGAPInstance();
 
@@ -47,10 +48,10 @@ int main(int argc, char** argv)
 
   auto t3 = std::chrono::high_resolution_clock::now();
 
-  std::unique_ptr<GDSolver> solver_gd
-    = std::make_unique<GDSolver>(gap_instance);
-
-  bool gd_success = solver_gd->solve();
+//  std::unique_ptr<GDSolver> solver_gd
+//    = std::make_unique<GDSolver>(gap_instance);
+//
+//  bool gd_success = solver_gd->solve();
 
   auto t4 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> runtime_gd = t4 - t3;

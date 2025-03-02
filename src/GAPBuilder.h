@@ -27,6 +27,7 @@ class GAPBuilder
     std::shared_ptr<GAPInstance> getGAPInstance();
 
     void print() const;
+    void writeMATLAB() const;
 
   private:
 

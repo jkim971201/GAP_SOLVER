@@ -1,3 +1,5 @@
+#include <fstream>
+
 #include "GAPBuilder.h"
 
 namespace gapbuilder
@@ -107,6 +109,64 @@ GAPBuilder::print() const
   }
 
   printf("\n");
+}
+
+void
+GAPBuilder::writeMATLAB() const
+{
+  const int num_items = instance_->num_items;
+  const int num_sacks = instance_->num_sacks;
+
+  auto& displays = instance_->profits;
+  auto& widths = instance_->weights;
+  auto& capacities = instance_->capacities;
+
+  std::ofstream output("matlab.txt");
+
+  // displacement
+  output << "d = ["; 
+
+  for(int item_id = 0; item_id < num_items; item_id++)
+  {
+    for(int sack_id = 0; sack_id < num_sacks; sack_id++)
+    {
+      int disp = displays.at(item_id).at(sack_id);
+      output << disp << " ";
+    }
+  }
+
+  output << "]';" << std::endl;
+
+  // Width matrix
+  output << "W = ["; 
+
+	for(int sack_id = 0; sack_id < num_sacks; sack_id++)
+	{
+    for(int i = 0; i < num_items * num_sacks; i++)
+    {
+      int item_id = i / num_sacks;
+  		int width = widths.at(item_id).at(sack_id);
+
+			if(i % num_sacks == sack_id)
+				output << width << " ";
+			else
+				output << 0 << " ";
+    }
+		output << ";" << std::endl;
+	}
+  
+  output << "];" << std::endl;
+
+  // Capacity
+  output << "c = ["; 
+
+  for(int sack_id = 0; sack_id < num_sacks; sack_id++)
+  {
+    int cap = capacities.at(sack_id);
+    output << cap << " ";
+  }
+
+  output << "]';" << std::endl;
 }
 
 };
