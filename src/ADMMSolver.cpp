@@ -77,11 +77,18 @@ ADMMSolver::ADMMSolver(std::shared_ptr<gapbuilder::GAPInstance> instance)
 void
 ADMMSolver::updateNextIter(int iter)
 {
+  std::swap(vector_x_cur_, vector_x_next_);
+  std::swap(vector_y_cur_, vector_y_next_);
+  std::swap(vector_u_cur_, vector_u_next_);
+
+  lambda_ = lambda_ * 1.05;
 }
 
 void
 ADMMSolver::setHyperParmeter()
 {
+  rho_ = 4.0;
+  lambda_ = 1.0;
 }
 
 void
@@ -147,12 +154,44 @@ ADMMSolver::computeFlattenInfo()
 float
 ADMMSolver::computeDisplacement(const int    num_candidates,
                                 const float* disp,
-                                const float* x_val)
+                                const float* vector_x)
 {
   float sum_disp = 0.0;
   for(int cand_id = 0; cand_id < num_candidates; cand_id++)
-    sum_disp += disp[cand_id] * x_val[cand_id];
+    sum_disp += disp[cand_id] * vector_x[cand_id];
   return sum_disp;
+}
+
+float
+ADMMSolver::computeFractionalCost(const int    num_candidates,
+                                  const float  lambda,
+                                  const float* vector_x)
+{
+  float sum_frac_cost = 0.0;
+  for(int cand_id = 0; cand_id < num_candidates; cand_id++)
+  {
+    float x_val = vector_x[cand_id];
+    sum_frac_cost += lambda * x_val * (1 - x_val);
+  }
+  return sum_frac_cost;
+}
+
+float
+ADMMSolver::computeOverflowCost(const int    num_bins,
+                                const float  rho,
+                                const float* bin_usage,
+                                const float* vector_y,
+                                const float* vector_u)
+{
+  float sum_ovf_cost = 0.0;
+  for(int bin_id = 0; bin_id < num_bins; bin_id++)
+  {
+    sum_ovf_cost += rho / 2 * std::pow(bin_usage[bin_id] 
+                                      + vector_y[bin_id] 
+                                      + vector_u[bin_id] / rho, 2);
+  }
+
+  return sum_ovf_cost;
 }
 
 void

@@ -65,6 +65,16 @@ class ADMMSolver
                               const float* disp,
                               const float* x_val);
 
+    float computeFractionalCost(const int    num_candidates,
+                                const float  lambda, 
+                                const float* x_array);
+
+    float computeOverflowCost(const int    num_bins,
+                              const float  rho,
+                              const float* bin_usage,
+                              const float* vector_y,
+                              const float* vector_u);
+
     void computeBinUsage(const int    num_bins,
                          const int*   bin_id_to_cand_id_start,
                          const int*   cand_id_to_cell_id,
