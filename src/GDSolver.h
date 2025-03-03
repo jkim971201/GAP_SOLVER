@@ -29,7 +29,10 @@ class GDSolver
 
   private:
 
+		int max_gd_iter_;
     float step_size_;
+		float overflow_penalty_;
+		float softmax_tmpr_;
 
     void setHyperParmeter();
     void updateParameter();
@@ -45,6 +48,10 @@ class GDSolver
     int num_cells_;
     int num_bins_;
     int num_candidates_;
+
+    std::vector<float> df_dy_;
+    std::vector<float> dy_dx_;
+    std::vector<float> df_dx_;
 
     std::vector<float> disps_;
     std::vector<float> widths_;

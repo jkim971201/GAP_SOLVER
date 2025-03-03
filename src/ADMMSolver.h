@@ -27,7 +27,11 @@ class ADMMSolver
 
   private:
 
+    float rho_;
+    float lambda_;
+
     void updatePrimalX(const int    num_candidates,
+                       const int    max_pgd_iter,
                        const float  rho, 
                        const float  lambda,
                        const float* widths,
@@ -38,21 +42,21 @@ class ADMMSolver
                        const float* u_cur,
                              float* x_next); /* return vector */
 
-    void simplexProjection(float* vector_to_project, /* return vector */ 
-                           float* vector_projection_workspace);
+    void simplexProjection(const int    num_cells,
+                           const int*   cell_id_to_num_cand,
+                           const float* vector_input, 
+                                 float* vector_sorted,
+                                 float* vector_output); /* return vector */ 
 
-    void updatePrimalY(const float  rho, 
-                       const float* widths,
-                       const float* capacities,
-                       const float* x_next,
-                       const float* y_cur,
+    void updatePrimalY(const int    num_bins,
+                       const float  rho, 
+                       const float* bin_usages,
                        const float* u_cur,
                              float* y_next); /* return vector */
 
-    void updateDual(const float  rho, 
-                    const float* widths,
-                    const float* capacities,
-                    const float* x_next,
+    void updateDual(const int    num_bins,
+                    const float  rho, 
+                    const float* bin_usages,
                     const float* y_next,
                     const float* u_cur,
                           float* u_next); /* return vector */
@@ -71,6 +75,8 @@ class ADMMSolver
 
     void computeGradient(const int    num_candidates,
                          const float  rho,
+                         const int*   cand_id_to_cell_id,
+                         const int*   cand_id_to_bin_id,
                          const float* disp,
                          const float* widths,
                          const float* bin_usage,

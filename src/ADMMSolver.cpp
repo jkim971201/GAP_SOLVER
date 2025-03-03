@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <cassert>
 
 #include "ADMMSolver.h"
 
@@ -74,6 +75,11 @@ ADMMSolver::ADMMSolver(std::shared_ptr<gapbuilder::GAPInstance> instance)
 }
 
 void
+ADMMSolver::updateNextIter(int iter)
+{
+}
+
+void
 ADMMSolver::setHyperParmeter()
 {
 }
@@ -138,11 +144,6 @@ ADMMSolver::computeFlattenInfo()
   bin_id_to_cand_id_start_.back() = num_candidates_;
 }
 
-void
-ADMMSolver::updateParameter()
-{
-}
-
 float
 ADMMSolver::computeDisplacement(const int    num_candidates,
                                 const float* disp,
@@ -151,7 +152,6 @@ ADMMSolver::computeDisplacement(const int    num_candidates,
   float sum_disp = 0.0;
   for(int cand_id = 0; cand_id < num_candidates; cand_id++)
     sum_disp += disp[cand_id] * x_val[cand_id];
-
   return sum_disp;
 }
 
@@ -173,8 +173,8 @@ ADMMSolver::computeBinUsage(const int    num_bins,
     int cand_id_end = bin_id_to_cand_id_start[bin_id + 1];
     for(int cand_id = cand_id_start; cand_id < cand_id_end; cand_id++)
     {
-      int cell_id = cand_id_to_cell_id_.at(cand_id);
-      float cell_width = widths_.at(cell_id);
+      int cell_id = cand_id_to_cell_id_[cand_id];
+      float cell_width = widths_[cell_id];
       float x_val = vector_x[cand_id];
 
       bin_usage += cell_width * x_val;
@@ -186,6 +186,7 @@ ADMMSolver::computeBinUsage(const int    num_bins,
 
 void
 ADMMSolver::updatePrimalX(const int    num_candidates,
+                          const int    max_pgd_iter,
                           const float  rho, 
                           const float  lambda,
                           const float* widths,
@@ -196,18 +197,18 @@ ADMMSolver::updatePrimalX(const int    num_candidates,
                           const float* u_cur,
                                 float* x_next)
 {
-  const int max_pgd_iter = 200;
   const float step_size = 7.8e-9;
 
-  std::vecotr<float> x_vector_temp(num_candidates, 0.0);
-  std::vector<float> v_vector(num_candidates, 0.0);
-  std::vector<float> x_vector_k_minus_1(num_candidates, 0.0);
-  std::vector<float> x_vector_k_minus_2(num_candidates, 0.0);
+  std::vector<float> vector_x_temp(num_candidates, 0.0);
+  std::vector<float> vector_workspace(num_candidates, 0.0);
+  std::vector<float> vector_v(num_candidates, 0.0);
+  std::vector<float> vector_x_k_minus_1(num_candidates, 0.0);
+  std::vector<float> vector_x_k_minus_2(num_candidates, 0.0);
 
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
   {
-    x_vector_k_minus_1.at(cand_id) = x_cur[cand_id];
-    x_vector_k_minus_2.at(cand_id) = x_cur[cand_id];
+    vector_x_k_minus_1.at(cand_id) = x_cur[cand_id];
+    vector_x_k_minus_2.at(cand_id) = x_cur[cand_id];
   }
 
   for(int pgd_iter = 0; pgd_iter < max_pgd_iter; pgd_iter++)
@@ -216,27 +217,89 @@ ADMMSolver::updatePrimalX(const int    num_candidates,
     float pgd_iter_float = static_cast<float>(pgd_iter);
     for(int v_idx = 0; v_idx < num_candidates; v_idx++)
     {
-      float x_k_minus_1 = x_vector_k_minus_1.at(v_idx);
-      float x_k_minus_2 = x_vector_k_minus_2.at(v_idx);
+      float x_k_minus_1 = vector_x_k_minus_1.at(v_idx);
+      float x_k_minus_2 = vector_x_k_minus_2.at(v_idx);
 
-      v_vector[v_idx] 
-        = (2 * pgd_iter_float - 1) / (pgd_iter_float + 1) * x_k_minus_1
-        + (pgd_iter_float - 2) / (pgd_iter_float + 1) * x_k_minus_2;
+      vector_v[v_idx] = 
+          (2 * pgd_iter_float - 1) / (pgd_iter_float + 1) * x_k_minus_1
+        - (    pgd_iter_float - 2) / (pgd_iter_float + 1) * x_k_minus_2;
     }
 
     // 2. compute gradient
-    for(int grad_idx = 0; grad_idx < num_candidates; grad_idx++)
-    {
+    computeBinUsage(num_bins_,
+                    bin_id_to_cand_id_start_.data(),
+                    cand_id_to_cell_id_.data(),
+                    widths_.data(),
+                    capacities_.data(),
+                    vector_v.data(),
+                    bin_usage_.data());
 
-    }
+    computeGradient(num_candidates_,
+                    rho_,
+                    cand_id_to_cell_id_.data(),
+                    cand_id_to_bin_id_.data(),
+                    disps_.data(),
+                    widths_.data(),
+                    bin_usage_.data(),
+                    vector_y_cur_.data(),
+                    vector_u_cur_.data(),
+                    vector_grad_.data());
+
+    std::transform(vector_v.begin(), 
+                   vector_v.end(),
+                   vector_grad_.begin(),
+                   vector_x_temp.begin(),
+                   [&] (float v, float grad) { return v - step_size * grad; });
 
     // 3. simplex projection
+    simplexProjection(num_cells_,
+                      cell_id_to_num_cand_.data(),
+                      vector_v.data(),
+                      vector_workspace.data(),
+                      vector_x_temp.data());
+
+    std::swap(vector_x_k_minus_2, vector_x_k_minus_1);
+    std::swap(vector_x_k_minus_1, vector_x_temp);
+  }
+
+  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+    x_next[cand_id] = vector_x_temp.at(cand_id);
+}
+
+void 
+ADMMSolver::updatePrimalY(const int    num_bins,
+                          const float  rho, 
+                          const float* bin_usages,
+                          const float* u_cur,
+                                float* y_next)
+{
+  for(int bin_id = 0; bin_id < num_bins; bin_id++)
+  {
+    y_next[bin_id] = 
+      std::max(static_cast<float>(0.0), -bin_usages[bin_id] - u_cur[bin_id] / rho);
+  }
+}
+
+void 
+ADMMSolver::updateDual(const int    num_bins,
+                       const float  rho, 
+                       const float* bin_usages,
+                       const float* y_next,
+                       const float* u_cur,
+                             float* u_next)
+{
+  for(int bin_id = 0; bin_id < num_bins; bin_id++)
+  {
+    u_next[bin_id] 
+      = u_cur[bin_id] + rho * (bin_usages[bin_id] + y_next[bin_id]);
   }
 }
 
 void
 ADMMSolver::computeGradient(const int    num_candidates,
                             const float  rho,
+                            const int*   cand_id_to_cell_id,
+                            const int*   cand_id_to_bin_id,
                             const float* disp,
                             const float* widths,
                             const float* bin_usage,
@@ -244,7 +307,15 @@ ADMMSolver::computeGradient(const int    num_candidates,
                             const float* vector_u,
                                   float* grad)
 {
-
+  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+  {
+    int cell_id = cand_id_to_cell_id[cand_id];
+    int bin_id = cand_id_to_bin_id[bin_id];
+    grad[cand_id] = disp[cand_id] 
+                  + rho * widths[cell_id] * (bin_usage[bin_id] 
+                                            + vector_y[bin_id] 
+                                            + vector_u[bin_id] / rho);
+  }
 }
 
 void bubbleSort(float* arr, int n)
@@ -266,15 +337,49 @@ void bubbleSort(float* arr, int n)
   }
 }
 
-void
-ADMMSolver::simplexProjection(float* vector_to_project,
-                              float* vector_projection_workspace)
+void 
+ADMMSolver::simplexProjection(const int    num_cells,
+                              const int*   cell_id_to_num_cand,
+                              const float* vector_input, 
+                                    float* vector_workspace,
+                                    float* vector_output)
 {
+  // Copy vector_input to vector_workspace
+  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+    vector_workspace[cand_id] = vector_input[cand_id];
+
   for(int cell_id = 0; cell_id < num_cells_; cell_id++)
   {
     int cand_id_start = cell_id_to_cand_id_start_.at(cell_id);
-    int num_candidates_this_cell = cell_id_to_num_cand_.at(cell_id);
-    float* vector_this_cell = vector_to_project + 
+    int num_cand_this_cell = cell_id_to_num_cand_.at(cell_id);
+
+    float* vector_sorted = vector_workspace + cand_id_start;
+    bubbleSort(vector_sorted, num_cand_this_cell);
+
+    int alpha = 0;
+    float sum_sorted = 0.0;
+
+    for(int i = 0; i < num_cand_this_cell; i++)
+    {
+      sum_sorted += vector_sorted[i];
+      float i_float = static_cast<float>(i);
+      if(vector_sorted[i] + 1.0 / (i_float + 1.0) * (1.0 - sum_sorted) > 0)
+        alpha = i;
+      else
+      {
+        assert(i != 0);
+        sum_sorted -= vector_sorted[i];
+        break;
+      }
+    }
+
+    float alpha_float = static_cast<float>(alpha);
+    float beta = 1 / (alpha_float + 1.0) * (1 - sum_sorted);
+
+    const float* const vector_this_cell_input = vector_input + cand_id_start;
+    float* vector_this_cell_output = vector_output + cand_id_start;
+    for(int i = 0; i < num_cand_this_cell; i++)
+      vector_this_cell_output[i] = std::max(vector_this_cell_input[i] + beta, static_cast<float>(0.0));
   }
 }
 
@@ -284,18 +389,16 @@ ADMMSolver::solve()
   bool admm_success = false;
 
   int max_admm_iter = 200;
-  int admm_iter = 0;
-
-  while(admm_iter++ < max_admm_iter)
+  for(int admm_iter = 0; admm_iter < max_admm_iter; admm_iter++)
   {
     int max_pgd_iter = 200;
 
     /* ========================= Main ADMM Iteration ========================== */
     /* 1. Solve subproblem w.r.t. x_k (Projected Gradient) */
     updatePrimalX(num_candidates_,
+                  max_pgd_iter,
                   rho_,
                   lambda_,
-                  max_pgd_iter,
                   widths_.data(), 
                   disps_.data(), 
                   capacities_.data(), 
@@ -305,20 +408,17 @@ ADMMSolver::solve()
                   vector_x_next_.data()); /* return new x_vector */
 
     /* 2. Solve subproblem w.r.t. y_k */
-    updatePrimalY(rho_, 
-                  widths_.data(), 
-                  capacities_.data(), 
-                  vector_x_next_.data(), 
-                  vector_y_cur_.data(), 
+    updatePrimalY(num_bins_,
+                  rho_, 
+                  bin_usage_.data(), 
                   vector_u_cur_.data(),
                   vector_y_next_.data()); /* return new y_vector */
 
     /* 3. Update Dual Variable u */
-    updateDual(rho_, 
-               widths_.data(),
-               capacities_.data(), 
-               vector_x_next_.data(), 
-               vector_y_next_().data(), 
+    updateDual(num_bins_,
+               rho_, 
+               bin_usage_.data(), 
+               vector_y_next_.data(), 
                vector_u_cur_.data(),
                vector_u_next_.data()); /* return new u_vector */
   
