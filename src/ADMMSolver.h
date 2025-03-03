@@ -30,6 +30,11 @@ class ADMMSolver
     float rho_;
     float lambda_;
 
+    void initializeX(const int    num_cells, 
+                     const int*   cell_id_to_cand_id_start,
+                     const float* disps,
+                           float* vector_x);
+
     void updatePrimalX(const int    num_candidates,
                        const int    max_pgd_iter,
                        const float  rho, 
@@ -63,11 +68,11 @@ class ADMMSolver
 
     float computeDisplacement(const int    num_candidates,
                               const float* disp,
-                              const float* x_val);
+                              const float* x_vector);
 
     float computeFractionalCost(const int    num_candidates,
                                 const float  lambda, 
-                                const float* x_array);
+                                const float* x_vector);
 
     float computeOverflowCost(const int    num_bins,
                               const float  rho,

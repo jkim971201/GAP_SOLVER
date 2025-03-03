@@ -4,13 +4,13 @@
 #include <memory>
 #include <cassert>
 
-#include "GDSolver.h"
+#include "ADMMSolver.h"
 #include "GAPBuilder.h"
 #include "ILPSolver.h"
 
 using namespace gapbuilder;
 using namespace ilpsolver;
-using namespace gdsolver;
+using namespace admmsolver;
 
 int main(int argc, char** argv)
 {
@@ -23,8 +23,8 @@ int main(int argc, char** argv)
   const std::string input_file_name = argv[1];
 
   GAPBuilder gap_builder(input_file_name);
-  gap_builder.print();
-	gap_builder.writeMATLAB();
+  //gap_builder.print();
+  //gap_builder.writeMATLAB();
 
   auto gap_instance = gap_builder.getGAPInstance();
 
@@ -35,29 +35,28 @@ int main(int argc, char** argv)
                                   gap_instance->weights,
                                   gap_instance->capacities);
 
-  bool ilp_success = solver_ilp->solve();
-
-  assert(ilp_success == true);
+  //bool ilp_success = solver_ilp->solve();
+  //assert(ilp_success == true);
 
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> runtime_ilp = t2 - t1;
 
-  printf("ILP Solver Results\n");
-  printf("Objective Value : %d\n", solver_ilp->getOptimalValue());
-  printf("Runtime : %f\n", runtime_ilp.count());
+  //printf("ILP Solver Results\n");
+  //printf("Objective Value : %d\n", solver_ilp->getOptimalValue());
+  //printf("Runtime : %f\n", runtime_ilp.count());
 
   auto t3 = std::chrono::high_resolution_clock::now();
 
-//  std::unique_ptr<GDSolver> solver_gd
-//    = std::make_unique<GDSolver>(gap_instance);
-//
-//  bool gd_success = solver_gd->solve();
+  std::unique_ptr<ADMMSolver> solver_admm
+    = std::make_unique<ADMMSolver>(gap_instance);
+
+  bool admm_success = solver_admm->solve();
 
   auto t4 = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> runtime_gd = t4 - t3;
+  std::chrono::duration<double> runtime_admm = t4 - t3;
 
-  printf("GD Solver Results\n");
-  printf("Runtime : %f\n", runtime_gd.count());
+  printf("ADMM Solver Results\n");
+  printf("Runtime : %f\n", runtime_admm.count());
 
   return 0;
 }
