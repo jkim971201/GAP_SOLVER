@@ -99,6 +99,8 @@ class ADMMSolver
                          const float* vector_u,
                                float* grad); /* return vector */
 
+		void makeIntegerSolution(const float* vector_in, float* vector_out); /* return vector */
+
     void updateNextIter(int iter);
     void setHyperParmeter();
     void computeFlattenInfo();
