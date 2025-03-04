@@ -113,16 +113,16 @@ ADMMSolver::initializeX(const int    num_cells,
   printf("Initial Displacement : %f\n", initial_disp);
 
   computeBinUsage(num_bins_,
-			            bin_id_to_cand_id_start_.data(),
-									cand_id_to_cell_id_.data(),
-									widths_.data(),
-									capacities_.data(),
-									vector_x,
-									bin_usage_.data());
+                  bin_id_to_cand_id_start_.data(),
+                  cand_id_to_cell_id_.data(),
+                  widths_.data(),
+                  capacities_.data(),
+                  vector_x,
+                  bin_usage_.data());
 
   printf("Bin Usage\n");
-	for(int bin_id = 0; bin_id < num_bins_; bin_id++)
-		printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
+  for(int bin_id = 0; bin_id < num_bins_; bin_id++)
+    printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
 
   float initial_ovf 
     = computeOverflowCost(num_bins_, 
@@ -245,6 +245,31 @@ ADMMSolver::computeFlattenInfo()
 
   assert(flatten_idx_bin == num_candidates_);
   bin_id_to_cand_id_start_.back() = num_candidates_;
+
+//  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+//  {
+//    int cell_id = cand_id_to_cell_id_.at(cand_id);
+//    int bin_id = cand_id_to_bin_id_.at(cand_id);
+//    printf("cand_id %d -> cell : %d bin : %d\n", cand_id, cell_id, bin_id);
+//  }
+//
+//  for(int cell_id = 0; cell_id < num_cells_; cell_id++)
+//    printf("cell_id %d cell_id_to_cand_id_start : %d\n", cell_id, cell_id_to_cand_id_start_.at(cell_id));
+//
+//  for(int bin_id = 0; bin_id < num_bins_; bin_id++)
+//    printf("bin_id %d bin_id_to_cand_id_start : %d\n", bin_id, bin_id_to_cand_id_start_.at(bin_id));
+//
+//  for(int i = 0; i < num_candidates_; i++)
+//  {
+//    int cell_id = cand_id_to_cell_id_.at(cand_id_foreach_cells_.at(i));
+//    printf("i : %d cand_id_foreach_cells : %d cell_id : %d\n", i, cand_id_foreach_cells_.at(i), cell_id);
+//  }
+//
+//  for(int i = 0; i < num_candidates_; i++)
+//  {
+//    int bin_id = cand_id_to_bin_id_.at(cand_id_foreach_bins_.at(i));
+//    printf("i : %d cand_id_foreach_bins : %d bin_id : %d\n", i, cand_id_foreach_bins_.at(i), bin_id);
+//  }
 }
 
 float
@@ -376,6 +401,7 @@ ADMMSolver::updatePrimalX(const int    num_candidates,
                     disps,
                     widths,
                     bin_usage_.data(),
+                    vector_v.data(),
                     y_cur,
                     u_cur,
                     vector_grad_.data());
@@ -393,11 +419,11 @@ ADMMSolver::updatePrimalX(const int    num_candidates,
                       vector_workspace.data(),
                       vector_x_temp.data());
 
-		if(pgd_iter != max_pgd_iter - 1)
-		{
+    if(pgd_iter != max_pgd_iter - 1)
+    {
       std::swap(vector_x_k_minus_2, vector_x_k_minus_1);
       std::swap(vector_x_k_minus_1, vector_x_temp);
-		}
+    }
   }
 
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
@@ -441,6 +467,7 @@ ADMMSolver::computeGradient(const int    num_candidates,
                             const float* disp,
                             const float* widths,
                             const float* bin_usage,
+                            const float* vector_x,
                             const float* vector_y,
                             const float* vector_u,
                                   float* grad)
@@ -452,15 +479,21 @@ ADMMSolver::computeGradient(const int    num_candidates,
     grad[cand_id] = disp[cand_id] 
                   + rho * widths[cell_id] * (bin_usage[bin_id] 
                                             + vector_y[bin_id] 
-                                            + vector_u[bin_id] / rho);
+                                            + vector_u[bin_id] / rho)
+                  + lambda_ * (1.0 - 2.0 * vector_x[cand_id]);
   }
 }
 
 void bubbleSort(float* arr, int n)
 {
+  //printf("Input Array : ");
+  //for(int k = 0; k < n; k++)
+  //  printf(" %f ", arr[k]);
+  //printf("\n");
+
   int i,j;
   float temp;
-  for(j = n; j > 0; j--)
+  for(j = n - 1; j > 0; j--)
   {
     for(i = 0; i < j; i++)
     {
@@ -473,15 +506,28 @@ void bubbleSort(float* arr, int n)
       }
     }
   }
+
+  //printf("Sorted Array : ");
+  //for(int k = 0; k < n; k++)
+  //  printf(" %f ", arr[k]);
+  //printf("\n");
 }
 
 void 
 ADMMSolver::simplexProjection(const int    num_cells,
                               const int*   cell_id_to_num_cand,
-                              const float* vector_input, 
+                              const float* const vector_input, 
                                     float* vector_workspace,
                                     float* vector_output)
 {
+//  printf("Input\n");
+//  for(int i = 0; i < num_cells_; i++)
+//  {
+//    for(int j = 0; j < num_bins_; j++)
+//      printf(" %f ", vector_input[i * num_bins_ + j]);
+//    printf("\n");
+//  }
+
   // Copy vector_input to vector_workspace
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
     vector_workspace[cand_id] = vector_input[cand_id];
@@ -490,6 +536,8 @@ ADMMSolver::simplexProjection(const int    num_cells,
   {
     int cand_id_start = cell_id_to_cand_id_start_.at(cell_id);
     int num_cand_this_cell = cell_id_to_num_cand_.at(cell_id);
+
+    // printf("cell_id : %d cand_id_start : %d\n", cell_id, cand_id_start);
 
     float* vector_sorted = vector_workspace + cand_id_start;
     bubbleSort(vector_sorted, num_cand_this_cell);
@@ -512,42 +560,54 @@ ADMMSolver::simplexProjection(const int    num_cells,
     }
 
     float alpha_float = static_cast<float>(alpha);
-    float beta = 1 / (alpha_float + 1.0) * (1 - sum_sorted);
+    float beta = 1.0 / (alpha_float + 1.0) * (1.0 - sum_sorted);
 
     const float* const vector_this_cell_input = vector_input + cand_id_start;
     float* vector_this_cell_output = vector_output + cand_id_start;
     for(int i = 0; i < num_cand_this_cell; i++)
       vector_this_cell_output[i] = std::max(vector_this_cell_input[i] + beta, static_cast<float>(0.0));
   }
+
+//  printf("Output\n");
+//  for(int i = 0; i < num_cells_; i++)
+//  {
+//    float sum = 0.0;
+//    for(int j = 0; j < num_bins_; j++)
+//    {
+//      sum += vector_output[i * num_bins_ + j];
+//      printf(" %f ", vector_output[i * num_bins_ + j]);
+//    }
+//    printf(" Sum : %f\n", sum);
+//  }
 }
 
 void
 ADMMSolver::makeIntegerSolution(const float* vector_in,
-		                                  float* vector_out)
+                                      float* vector_out)
 {
   for(int cell_id = 0; cell_id < num_cells_; cell_id++)
-	{
+  {
     int cand_id_start = cell_id_to_cand_id_start_[cell_id];
     int cand_id_end = cell_id_to_cand_id_start_[cell_id + 1];
 
-		int max_cand_id = -1;
-		float max_x_val = 0.0;
+    int max_cand_id = -1;
+    float max_x_val = 0.0;
     for(int index = cand_id_start; index < cand_id_end; index++)
     {
       int cand_id = cand_id_foreach_cells_.at(index);
       float x_val = vector_in[cand_id];
 
-			printf("x_val : %f\n", x_val);
-			if(x_val >= max_x_val)
-			{
+      // printf("x_val : %f\n", x_val);
+      if(x_val >= max_x_val)
+      {
         max_x_val = x_val;
-				max_cand_id = cand_id;
-			}
+        max_cand_id = cand_id;
+      }
     }
 
-		assert(max_cand_id != -1);
-		vector_out[max_cand_id] = 1.0;
-	}
+    assert(max_cand_id != -1);
+    vector_out[max_cand_id] = 1.0;
+  }
 }
 
 bool
@@ -594,37 +654,37 @@ ADMMSolver::solve()
   }
   
   float final_disp = computeDisplacement(num_candidates_, disps_.data(), vector_x_cur_.data());
-	printf("Final Displacement : %f\n", final_disp);
+  printf("Final Displacement : %f\n", final_disp);
 
   computeBinUsage(num_bins_,
-			            bin_id_to_cand_id_start_.data(),
-									cand_id_to_cell_id_.data(),
-									widths_.data(),
-									capacities_.data(),
-									vector_x_cur_.data(),
-									bin_usage_.data());
+                  bin_id_to_cand_id_start_.data(),
+                  cand_id_to_cell_id_.data(),
+                  widths_.data(),
+                  capacities_.data(),
+                  vector_x_cur_.data(),
+                  bin_usage_.data());
 
-	printf("Bin Usage\n");
-	for(int bin_id = 0; bin_id < num_bins_; bin_id++)
-		printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
+  printf("Bin Usage\n");
+  for(int bin_id = 0; bin_id < num_bins_; bin_id++)
+    printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
 
-	std::vector<float> vector_x_int(num_candidates_, 0.0);
-	makeIntegerSolution(vector_x_cur_.data(), vector_x_int.data());
+  std::vector<float> vector_x_int(num_candidates_, 0.0);
+  makeIntegerSolution(vector_x_cur_.data(), vector_x_int.data());
 
   float final_disp_int = computeDisplacement(num_candidates_, disps_.data(), vector_x_int.data());
-	printf("Final Displacement (int) : %f\n", final_disp_int);
-//
-//  computeBinUsage(num_bins_,
-//			            bin_id_to_cand_id_start_.data(),
-//									cand_id_to_cell_id_.data(),
-//									widths_.data(),
-//									capacities_.data(),
-//									vector_x_int.data(),
-//									bin_usage_.data());
-//
-//	printf("Bin Usage (int)\n");
-//	for(int bin_id = 0; bin_id < num_bins_; bin_id++)
-//		printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
+  printf("Final Displacement (int) : %f\n", final_disp_int);
+
+  computeBinUsage(num_bins_,
+                  bin_id_to_cand_id_start_.data(),
+                  cand_id_to_cell_id_.data(),
+                  widths_.data(),
+                  capacities_.data(),
+                  vector_x_int.data(),
+                  bin_usage_.data());
+
+  printf("Bin Usage (int)\n");
+  for(int bin_id = 0; bin_id < num_bins_; bin_id++)
+    printf("  %f\n", bin_usage_.at(bin_id) + capacities_.at(bin_id));
 
   return admm_success;
 }

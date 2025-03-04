@@ -49,7 +49,7 @@ class ADMMSolver
 
     void simplexProjection(const int    num_cells,
                            const int*   cell_id_to_num_cand,
-                           const float* vector_input, 
+                           const float* const vector_input, 
                                  float* vector_sorted,
                                  float* vector_output); /* return vector */ 
 
@@ -95,11 +95,12 @@ class ADMMSolver
                          const float* disp,
                          const float* widths,
                          const float* bin_usage,
+                         const float* vector_x,
                          const float* vector_y,
                          const float* vector_u,
                                float* grad); /* return vector */
 
-		void makeIntegerSolution(const float* vector_in, float* vector_out); /* return vector */
+    void makeIntegerSolution(const float* vector_in, float* vector_out); /* return vector */
 
     void updateNextIter(int iter);
     void setHyperParmeter();
