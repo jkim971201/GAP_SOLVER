@@ -6,6 +6,8 @@
 
 #include "ADMMSolver.h"
 
+#define NUM_THREAD 1
+
 namespace admmsolver
 {
 
@@ -142,19 +144,19 @@ ADMMSolver::updateNextIter(int iter)
 
   lambda_ = lambda_ * 1.05;
 
-  float disp_cost 
-    = computeDisplacement(num_candidates_, disps_.data(), vector_x_cur_.data());
-
-  float ovf_cost
-    = computeOverflowCost(num_bins_, rho_, bin_usage_.data(), vector_y_cur_.data(), vector_u_cur_.data());
-
-  float frac_cost
-    = computeFractionalCost(num_candidates_, lambda_, vector_x_cur_.data());
-
-  float total_cost = disp_cost + ovf_cost + frac_cost;
-
-  printf("ADMM Iter : %3d Lambda: %f DisplacementCost : %f OverflowCost : %f FractionalCost : %f\n", 
-          iter, lambda_, disp_cost, ovf_cost, frac_cost);
+//  float disp_cost 
+//    = computeDisplacement(num_candidates_, disps_.data(), vector_x_cur_.data());
+//
+//  float ovf_cost
+//    = computeOverflowCost(num_bins_, rho_, bin_usage_.data(), vector_y_cur_.data(), vector_u_cur_.data());
+//
+//  float frac_cost
+//    = computeFractionalCost(num_candidates_, lambda_, vector_x_cur_.data());
+//
+//  float total_cost = disp_cost + ovf_cost + frac_cost;
+//
+//  printf("ADMM Iter : %3d Lambda: %f DisplacementCost : %f OverflowCost : %f FractionalCost : %f\n", 
+//          iter, lambda_, disp_cost, ovf_cost, frac_cost);
 }
 
 void
@@ -323,6 +325,7 @@ ADMMSolver::computeBinUsage(const int    num_bins,
                             const float* vector_x,
                                   float* bin_usages) /* return vector */
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     float bin_usage = 0.0;
@@ -437,6 +440,7 @@ ADMMSolver::updatePrimalY(const int    num_bins,
                           const float* u_cur,
                                 float* y_next)
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     y_next[bin_id] = 
@@ -452,6 +456,7 @@ ADMMSolver::updateDual(const int    num_bins,
                        const float* u_cur,
                              float* u_next)
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     u_next[bin_id] 
@@ -472,6 +477,7 @@ ADMMSolver::computeGradient(const int    num_candidates,
                             const float* vector_u,
                                   float* grad)
 {
+  // #pragma omp parallel for num_threads(NUM_THREAD)
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
   {
     int cell_id = cand_id_to_cell_id[cand_id];
