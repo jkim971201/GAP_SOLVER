@@ -144,8 +144,6 @@ ADMMSolver::updateNextIter(int iter)
 
   lambda_ = lambda_ * 1.05;
 
-  rho_ = rho_ * 1.02;
-
 //  float disp_cost 
 //    = computeDisplacement(num_candidates_, disps_.data(), vector_x_cur_.data());
 //
@@ -164,7 +162,7 @@ ADMMSolver::updateNextIter(int iter)
 void
 ADMMSolver::setHyperParmeter()
 {
-  rho_ = 0.0000000001;
+  rho_ = 4.0;
   lambda_ = 1.0;
 }
 
@@ -181,6 +179,26 @@ ADMMSolver::computeFlattenInfo()
     cand_id_to_bin_id_[cand_id] = candidate.bin_id;
     cell2candidates[candidate.cell_id].push_back(cand_id);
   }
+
+//  float sum_min_disp = 0.0;
+//  for(int cell_id = 0; cell_id < num_cells_; cell_id++)
+//  {
+//    auto& cand_vec = cell2candidates.at(cell_id);
+//    int min_disp_id = -1;
+//    float min_disp = 99999;
+//    for(auto cand_id : cand_vec)
+//    {
+//      float disp_test = disps_.at(cand_id);
+//      if(disp_test < min_disp)
+//      {
+//        min_disp = disp_test;
+//        min_disp_id = cand_id;
+//      }
+//    }
+//    sum_min_disp += min_disp;
+//    printf("Cell ID : %d Min Disp : %f Min Disp ID : %d\n", cell_id, min_disp, min_disp_id);
+//  }
+//  printf("Sum Min Disp : %f\n", sum_min_disp);
 
   int flatten_idx_cell = 0;
   for(int cell_id = 0; cell_id < num_cells_; cell_id++)
@@ -229,6 +247,31 @@ ADMMSolver::computeFlattenInfo()
 
   assert(flatten_idx_bin == num_candidates_);
   bin_id_to_cand_id_start_.back() = num_candidates_;
+
+//  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+//  {
+//    int cell_id = cand_id_to_cell_id_.at(cand_id);
+//    int bin_id = cand_id_to_bin_id_.at(cand_id);
+//    printf("cand_id %d -> cell : %d bin : %d\n", cand_id, cell_id, bin_id);
+//  }
+//
+//  for(int cell_id = 0; cell_id < num_cells_; cell_id++)
+//    printf("cell_id %d cell_id_to_cand_id_start : %d\n", cell_id, cell_id_to_cand_id_start_.at(cell_id));
+//
+//  for(int bin_id = 0; bin_id < num_bins_; bin_id++)
+//    printf("bin_id %d bin_id_to_cand_id_start : %d\n", bin_id, bin_id_to_cand_id_start_.at(bin_id));
+//
+//  for(int i = 0; i < num_candidates_; i++)
+//  {
+//    int cell_id = cand_id_to_cell_id_.at(cand_id_foreach_cells_.at(i));
+//    printf("i : %d cand_id_foreach_cells : %d cell_id : %d\n", i, cand_id_foreach_cells_.at(i), cell_id);
+//  }
+//
+//  for(int i = 0; i < num_candidates_; i++)
+//  {
+//    int bin_id = cand_id_to_bin_id_.at(cand_id_foreach_bins_.at(i));
+//    printf("i : %d cand_id_foreach_bins : %d bin_id : %d\n", i, cand_id_foreach_bins_.at(i), bin_id);
+//  }
 }
 
 float
@@ -282,6 +325,7 @@ ADMMSolver::computeBinUsage(const int    num_bins,
                             const float* vector_x,
                                   float* bin_usages) /* return vector */
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     float bin_usage = 0.0;
@@ -305,48 +349,88 @@ ADMMSolver::computeBinUsage(const int    num_bins,
 
 void
 ADMMSolver::updatePrimalX(const int    num_candidates,
+                          const int    max_pgd_iter,
                           const float  rho, 
                           const float  lambda,
                           const float* widths,
                           const float* disps,
                           const float* capacities,
-                          const float* bin_usages,
                           const float* x_cur,
                           const float* y_cur,
                           const float* u_cur,
                                 float* x_next)
 {
-  std::vector<float> x_temp(num_candidates, 0.0);
+  const float step_size = 7.8e-9 / rho;
 
-  for(int cell_id = 0; cell_id < num_cells_; cell_id++)
+  std::vector<float> vector_x_temp(num_candidates, 0.0);
+  std::vector<float> vector_workspace(num_candidates, 0.0);
+  std::vector<float> vector_v(num_candidates, 0.0);
+  std::vector<float> vector_x_k_minus_1(num_candidates, 0.0);
+  std::vector<float> vector_x_k_minus_2(num_candidates, 0.0);
+
+  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
   {
-    int cand_id_start = cell_id_to_cand_id_start_.at(cell_id);
-    int cand_id_end = cell_id_to_cand_id_start_.at(cell_id + 1);
-
-    int min_cand_id = -1;
-    float min_cost = std::numeric_limits<float>::max();
-    for(int index = cand_id_start; index < cand_id_end; index++)
-    {
-      int cand_id = cand_id_foreach_cells_.at(index);
-      int  bin_id = cand_id_to_bin_id_.at(cand_id);
-      float bin_usage = bin_usages[bin_id];
-      float width = widths[cand_id];
-      float cost 
-        = rho * width * (bin_usage + y_cur[bin_id] + u_cur[bin_id] / rho) + disps[cand_id];
-
-      if(cost <= min_cost)
-      {
-        min_cost = cost;
-        min_cand_id = cand_id;
-      }
-    }
-
-    assert(min_cand_id != -1);
-    x_temp[min_cand_id] = 1.0;
+    vector_x_k_minus_1.at(cand_id) = x_cur[cand_id];
+    vector_x_k_minus_2.at(cand_id) = x_cur[cand_id];
   }
 
-  for(int cand_id = 0; cand_id < num_candidates; cand_id++)
-    x_next[cand_id] = x_temp.at(cand_id);
+  for(int pgd_iter = 0; pgd_iter < max_pgd_iter; pgd_iter++)
+  {
+    // 1. update v_vector
+    float pgd_iter_float = static_cast<float>(pgd_iter);
+    for(int v_idx = 0; v_idx < num_candidates; v_idx++)
+    {
+      float x_k_minus_1 = vector_x_k_minus_1.at(v_idx);
+      float x_k_minus_2 = vector_x_k_minus_2.at(v_idx);
+
+      vector_v[v_idx] = 
+          (2 * pgd_iter_float - 1) / (pgd_iter_float + 1) * x_k_minus_1
+        - (    pgd_iter_float - 2) / (pgd_iter_float + 1) * x_k_minus_2;
+    }
+
+    // 2. compute gradient
+    computeBinUsage(num_bins_,
+                    bin_id_to_cand_id_start_.data(),
+                    cand_id_to_cell_id_.data(),
+                    widths,
+                    capacities,
+                    vector_v.data(),
+                    bin_usage_.data());
+
+    computeGradient(num_candidates_,
+                    rho_,
+                    cand_id_to_cell_id_.data(),
+                    cand_id_to_bin_id_.data(),
+                    disps,
+                    widths,
+                    bin_usage_.data(),
+                    vector_v.data(),
+                    y_cur,
+                    u_cur,
+                    vector_grad_.data());
+
+    std::transform(vector_v.begin(), 
+                   vector_v.end(),
+                   vector_grad_.begin(),
+                   vector_x_temp.begin(),
+                   [&] (float v, float grad) { return v - step_size * grad; });
+
+    // 3. simplex projection
+    simplexProjection(num_cells_,
+                      cell_id_to_num_cand_.data(),
+                      vector_x_temp.data(),
+                      vector_workspace.data(),
+                      vector_x_temp.data());
+
+    if(pgd_iter != max_pgd_iter - 1)
+    {
+      std::swap(vector_x_k_minus_2, vector_x_k_minus_1);
+      std::swap(vector_x_k_minus_1, vector_x_temp);
+    }
+  }
+
+  for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
+    x_next[cand_id] = vector_x_temp.at(cand_id);
 }
 
 void 
@@ -356,10 +440,11 @@ ADMMSolver::updatePrimalY(const int    num_bins,
                           const float* u_cur,
                                 float* y_next)
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     y_next[bin_id] = 
-      std::max(float(0.0), -bin_usages[bin_id] - u_cur[bin_id] / rho);
+      std::max(static_cast<float>(0.0), -bin_usages[bin_id] - u_cur[bin_id] / rho);
   }
 }
 
@@ -371,10 +456,11 @@ ADMMSolver::updateDual(const int    num_bins,
                        const float* u_cur,
                              float* u_next)
 {
+  //#pragma omp parallel for num_threads(NUM_THREAD)
   for(int bin_id = 0; bin_id < num_bins; bin_id++)
   {
     u_next[bin_id] 
-      = std::max(float(0.0), u_cur[bin_id] + rho * (bin_usages[bin_id] + y_next[bin_id]));
+      = u_cur[bin_id] + rho * (bin_usages[bin_id] + y_next[bin_id]);
   }
 }
 
@@ -391,6 +477,7 @@ ADMMSolver::computeGradient(const int    num_candidates,
                             const float* vector_u,
                                   float* grad)
 {
+  // #pragma omp parallel for num_threads(NUM_THREAD)
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
   {
     int cell_id = cand_id_to_cell_id[cand_id];
@@ -439,6 +526,14 @@ ADMMSolver::simplexProjection(const int    num_cells,
                                     float* vector_workspace,
                                     float* vector_output)
 {
+//  printf("Input\n");
+//  for(int i = 0; i < num_cells_; i++)
+//  {
+//    for(int j = 0; j < num_bins_; j++)
+//      printf(" %f ", vector_input[i * num_bins_ + j]);
+//    printf("\n");
+//  }
+
   // Copy vector_input to vector_workspace
   for(int cand_id = 0; cand_id < num_candidates_; cand_id++)
     vector_workspace[cand_id] = vector_input[cand_id];
@@ -478,6 +573,18 @@ ADMMSolver::simplexProjection(const int    num_cells,
     for(int i = 0; i < num_cand_this_cell; i++)
       vector_this_cell_output[i] = std::max(vector_this_cell_input[i] + beta, static_cast<float>(0.0));
   }
+
+//  printf("Output\n");
+//  for(int i = 0; i < num_cells_; i++)
+//  {
+//    float sum = 0.0;
+//    for(int j = 0; j < num_bins_; j++)
+//    {
+//      sum += vector_output[i * num_bins_ + j];
+//      printf(" %f ", vector_output[i * num_bins_ + j]);
+//    }
+//    printf(" Sum : %f\n", sum);
+//  }
 }
 
 void
@@ -514,30 +621,24 @@ ADMMSolver::solve()
 {
   bool admm_success = false;
 
-  int max_admm_iter = 400;
+  int max_admm_iter = 200;
   for(int admm_iter = 0; admm_iter < max_admm_iter; admm_iter++)
   {
-    /* ===================== Main ADMM Iteration ====================== */
+    int max_pgd_iter = 200;
+
+    /* ========================= Main ADMM Iteration ========================== */
     /* 1. Solve subproblem w.r.t. x_k (Projected Gradient) */
     updatePrimalX(num_candidates_,
+                  max_pgd_iter,
                   rho_,
                   lambda_,
                   widths_.data(), 
                   disps_.data(), 
                   capacities_.data(), 
-                  bin_usage_.data(),
                   vector_x_cur_.data(), 
                   vector_y_cur_.data(),
                   vector_u_cur_.data(),
                   vector_x_next_.data()); /* return new x_vector */
-
-    computeBinUsage(num_bins_,
-                    bin_id_to_cand_id_start_.data(),
-                    cand_id_to_cell_id_.data(),
-                    widths_.data(),
-                    capacities_.data(),
-                    vector_x_next_.data(),
-                    bin_usage_.data());
 
     /* 2. Solve subproblem w.r.t. y_k */
     updatePrimalY(num_bins_,
@@ -555,7 +656,7 @@ ADMMSolver::solve()
                vector_u_next_.data()); /* return new u_vector */
   
     updateNextIter(admm_iter);
-    /* ================================================================ */
+    /* ======================================================================== */
   }
   
   float final_disp = computeDisplacement(num_candidates_, disps_.data(), vector_x_cur_.data());

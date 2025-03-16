@@ -36,12 +36,12 @@ class ADMMSolver
                            float* vector_x);
 
     void updatePrimalX(const int    num_candidates,
+                       const int    max_pgd_iter,
                        const float  rho, 
                        const float  lambda,
                        const float* widths,
                        const float* disps,
                        const float* capacities,
-                       const float* bin_usages,
                        const float* x_cur,
                        const float* y_cur,
                        const float* u_cur,
