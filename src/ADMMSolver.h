@@ -28,79 +28,45 @@ class ADMMSolver
   private:
 
     float rho_;
-    float lambda_;
 
     void initializeX(const int    num_cells, 
-                     const int*   cell_id_to_cand_id_start,
                      const float* disps,
-                           float* vector_x);
+                           int*   cell_to_best_cand);
 
-    void updatePrimalX(const int    num_candidates,
+    void updatePrimalX(const int    num_cells,
                        const float  rho, 
-                       const float  lambda,
                        const float* widths,
                        const float* disps,
                        const float* capacities,
-                       const float* bin_usages,
-                       const float* x_cur,
                        const float* y_cur,
-                       const float* u_cur,
-                             float* x_next); /* return vector */
-
-    void simplexProjection(const int    num_cells,
-                           const int*   cell_id_to_num_cand,
-                           const float* const vector_input, 
-                                 float* vector_sorted,
-                                 float* vector_output); /* return vector */ 
+                       const float* l_cur,
+                             float* bin_slack,
+                             int*   cell_to_best_cand); /* return vector */
 
     void updatePrimalY(const int    num_bins,
                        const float  rho, 
-                       const float* bin_usages,
-                       const float* u_cur,
+                       const float* bin_slack,
+                       const float* l_cur,
                              float* y_next); /* return vector */
 
     void updateDual(const int    num_bins,
                     const float  rho, 
-                    const float* bin_usages,
+                    const float* bin_slack,
                     const float* y_next,
-                    const float* u_cur,
-                          float* u_next); /* return vector */
+                    const float* l_cur,
+                          float* l_next); /* return vector */
 
-    float computeDisplacement(const int    num_candidates,
-                              const float* disp,
-                              const float* x_vector);
+    float computeDisplacement(const int    num_cells,
+                              const int*   cell_to_best_cand,
+                              const float* disp);
 
-    float computeFractionalCost(const int    num_candidates,
-                                const float  lambda, 
-                                const float* x_vector);
-
-    float computeOverflowCost(const int    num_bins,
-                              const float  rho,
-                              const float* bin_usage,
-                              const float* vector_y,
-                              const float* vector_u);
-
-    void computeBinUsage(const int    num_bins,
-                         const int*   bin_id_to_cand_id_start,
-                         const int*   cand_id_to_cell_id,
+    void computeBinSlack(const int    num_bins,
+                         const int*   cell_to_best_cand,
                          const float* widths,
                          const float* capacities,
-                         const float* vector_x,
-                               float* bin_usages); /* return vector */
+                               float* bin_slack); /* return vector */
 
-    void computeGradient(const int    num_candidates,
-                         const float  rho,
-                         const int*   cand_id_to_cell_id,
-                         const int*   cand_id_to_bin_id,
-                         const float* disp,
-                         const float* widths,
-                         const float* bin_usage,
-                         const float* vector_x,
-                         const float* vector_y,
-                         const float* vector_u,
-                               float* grad); /* return vector */
-
-    void makeIntegerSolution(const float* vector_in, float* vector_out); /* return vector */
+    bool checkTermination();
 
     void updateNextIter(int iter);
     void setHyperParmeter();
@@ -118,28 +84,28 @@ class ADMMSolver
 
     std::vector<MoveCandidate> candidates_;
 
-    std::vector<float> bin_usage_;
+    std::vector<float> bin_slack_;
 
     std::vector<float> vector_x_cur_;
     std::vector<float> vector_y_cur_;
-    std::vector<float> vector_u_cur_;
+    std::vector<float> vector_l_cur_; // l : lambda
 
     std::vector<float> vector_x_next_;
     std::vector<float> vector_y_next_;
-    std::vector<float> vector_u_next_;
+    std::vector<float> vector_l_next_;
 
-    std::vector<float> vector_grad_;
+    std::vector<float> cell_to_demand_;
 
     std::vector<int> cand_id_to_cell_id_;
     std::vector<int> cand_id_to_bin_id_;
 
-    std::vector<int> cell_id_to_num_cand_;
-    std::vector<int> cell_id_to_cand_id_start_;
-    std::vector<int> cand_id_foreach_cells_;
+    std::vector<int> cell_to_best_cand_;
 
-    std::vector<int> bin_id_to_num_cand_;
-    std::vector<int> bin_id_to_cand_id_start_;
-    std::vector<int> cand_id_foreach_bins_;
+    std::vector<int> bin_ids_;
+    std::vector<int> cell_ids_;
+
+    std::vector<std::vector<int>> bin_id_to_cands_;
+    std::vector<std::vector<int>> cell_id_to_cands_;
 };
 
 }
